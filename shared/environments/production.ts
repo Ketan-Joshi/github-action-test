@@ -17,8 +17,8 @@ export const productionConfig: EnvironmentConfig = {
   },
 
   alb: {
-    hostedZoneName: 'in.cld',
-    certificateDomainName: '*.in.cld',
+    hostedZoneName: 'sample.in.cld',
+    certificateDomainName: '*.sample.in.cld',
   },
 
   ecsApps: [
@@ -31,8 +31,8 @@ export const productionConfig: EnvironmentConfig = {
       cpu: 512,
       memoryLimitMiB: 1024,
       desiredCount: 2,
-      hostHeader: 'nginx-app.in.cld',           // prod uses clean subdomain
-      dnsRecordName: 'nginx-app',
+      hostHeader: 'nginx.sample.in.cld',           // prod uses clean subdomain
+      dnsRecordName: 'nginx',
       minCapacity: 2,
       maxCapacity: 10,
       listenerRulePriority: 200,                // different priority from dev

@@ -5,7 +5,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
-import { config } from '../../shared/config.types';
+import { config } from '../../shared/config';
 
 export interface AlbConstructProps {
   vpc: ec2.Vpc;

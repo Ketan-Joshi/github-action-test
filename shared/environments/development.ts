@@ -4,7 +4,7 @@ import { EnvironmentConfig } from '../config.types';
 export const developmentConfig: EnvironmentConfig = {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION ?? 'ap-southeast-2',
+    region: process.env.CDK_DEFAULT_REGION ?? 'us-east-1',
   },
 
   // Unique prefix — applied to ALL resource names to avoid clashes
@@ -17,8 +17,8 @@ export const developmentConfig: EnvironmentConfig = {
   },
 
   alb: {
-    hostedZoneName: 'in.cld',
-    certificateDomainName: '*.in.cld',
+    hostedZoneName: 'sample.in.cld',
+    certificateDomainName: '*.sample.in.cld',
   },
 
   ecsApps: [
@@ -31,8 +31,8 @@ export const developmentConfig: EnvironmentConfig = {
       cpu: 256,
       memoryLimitMiB: 512,
       desiredCount: 1,
-      hostHeader: 'dev-nginx-app.in.cld',       // prefixed subdomain
-      dnsRecordName: 'dev-nginx-app',
+      hostHeader: 'dev-nginx.sample.in.cld',       // prefixed subdomain
+      dnsRecordName: 'dev-nginx',
       minCapacity: 1,
       maxCapacity: 3,
       listenerRulePriority: 100,

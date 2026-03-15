@@ -8,7 +8,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import { Construct } from 'constructs';
-import { EcsAppConfig, config } from '../../shared/config.types';
+import { EcsAppConfig, config } from '../../shared/config';
 
 export interface EcsServiceConstructProps {
   vpc: ec2.IVpc;

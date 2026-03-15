@@ -2,7 +2,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { Construct } from 'constructs';
-import { config } from '../../shared/config.types';
+import { config } from '../../shared/config';
 
 export class VpcConstruct extends Construct {
   public readonly vpc: ec2.Vpc;
