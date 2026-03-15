@@ -17,10 +17,6 @@ Parameters:
   GitHubRepo:
     Type: String
     Description: GitHub repository name
-  BranchName:
-    Type: String
-    Default: main
-    Description: Branch allowed to deploy
   AccountId:
     Type: String
     Description: Your AWS Account ID (12 digits)
@@ -67,7 +63,7 @@ Resources:
               StringLike:
                 # Only allow the specific repo + branch to assume this role
                 token.actions.githubusercontent.com:sub:
-                  !Sub repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/${BranchName}
+                  !Sub repo:${GitHubOrg}/${GitHubRepo}:*
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
       Tags:

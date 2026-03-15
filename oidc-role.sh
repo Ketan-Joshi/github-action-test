@@ -10,5 +10,4 @@ aws cloudformation deploy \
     GitHubOrg=Ketan-Joshi \
     GitHubRepo=github-action-test \
     AccountId=$(aws sts get-caller-identity --profile ketan --query Account --output text) \
-    CreateOidcProvider=true \
-    BranchName=main
+    CreateOidcProvider=true
