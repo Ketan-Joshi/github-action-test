@@ -1,4 +1,4 @@
-// ecs-apps/lib/ecs-service-construct.ts
+// ecs-apps/constructs/ecs-service-construct.ts
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
@@ -8,7 +8,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import { Construct } from 'constructs';
-import { EcsAppConfig } from '../../shared/config';
+import { EcsAppConfig, config } from '../../shared/config';
 
 export interface EcsServiceConstructProps {
   vpc: ec2.IVpc;
@@ -35,7 +35,7 @@ export class EcsServiceConstruct extends Construct {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    // Task Execution Role
+    // Task Execution Role — used by ECS agent (pull images, write logs)
     const executionRole = new iam.Role(this, 'ExecutionRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
       managedPolicies: [
@@ -43,13 +43,13 @@ export class EcsServiceConstruct extends Construct {
       ],
     });
 
-    // Task Role — least privilege, add app-specific permissions here
+    // Task Role — used by the container itself (least privilege)
     const taskRole = new iam.Role(this, 'TaskRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
       description: `Task role for ${appConfig.serviceName}`,
     });
 
-    // ECS Exec for debugging
+    // ECS Exec for live debugging
     taskRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -61,7 +61,7 @@ export class EcsServiceConstruct extends Construct {
       resources: ['*'],
     }));
 
-    // Task Definition
+    // Fargate Task Definition
     const taskDefinition = new ecs.FargateTaskDefinition(this, 'TaskDef', {
       cpu: appConfig.cpu,
       memoryLimitMiB: appConfig.memoryLimitMiB,
@@ -73,7 +73,7 @@ export class EcsServiceConstruct extends Construct {
       },
     });
 
-    // Container
+    // Container definition
     taskDefinition.addContainer('Container', {
       containerName: appConfig.containerName,
       image: ecs.ContainerImage.fromRegistry(appConfig.image),
@@ -91,10 +91,10 @@ export class EcsServiceConstruct extends Construct {
       },
     });
 
-    // ECS Security Group — only allows traffic from the shared ALB
+    // ECS Security Group — ONLY allows traffic from the shared ALB
     const ecsSg = new ec2.SecurityGroup(this, 'EcsSg', {
       vpc,
-      description: `SG for ${appConfig.serviceName} — allow only from shared ALB`,
+      description: `${appConfig.serviceName} — allow inbound from shared ALB only`,
       allowAllOutbound: true,
     });
 
@@ -118,7 +118,7 @@ export class EcsServiceConstruct extends Construct {
       capacityProviderStrategies: [{ capacityProvider: 'FARGATE', weight: 1 }],
     });
 
-    // Target Group for this service
+    // Target Group
     const targetGroup = new elbv2.ApplicationTargetGroup(this, 'TargetGroup', {
       vpc,
       port: appConfig.containerPort,
@@ -153,7 +153,7 @@ export class EcsServiceConstruct extends Construct {
       });
     }
 
-    // Route53 A record → shared ALB (alias)
+    // Route53 A record → shared ALB
     new route53.ARecord(this, 'DnsRecord', {
       zone: hostedZone,
       recordName: appConfig.dnsRecordName,
@@ -179,7 +179,7 @@ export class EcsServiceConstruct extends Construct {
     });
 
     new cdk.CfnOutput(this, 'ServiceUrl', {
-      value: `https://${appConfig.dnsRecordName}.${appConfig.hostHeader?.split('.').slice(1).join('.') ?? ''}`,
+      value: `https://${appConfig.dnsRecordName}.${config.alb.hostedZoneName}`,
       description: `URL for ${appConfig.serviceName}`,
     });
   }

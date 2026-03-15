@@ -29,7 +29,7 @@ export interface EcsAppConfig {
 export const config = {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT ?? '682363910843',
-    region: process.env.CDK_DEFAULT_REGION ?? 'ua-east-1',
+    region: process.env.CDK_DEFAULT_REGION ?? 'us-east-1',
   },
 
   // ── Landing Zone ──────────────────────────────────────────

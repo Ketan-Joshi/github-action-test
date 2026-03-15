@@ -1,4 +1,4 @@
-// landing-zone/lib/alb-construct.ts
+// landing-zone/constructs/alb-construct.ts
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
@@ -31,7 +31,6 @@ export class AlbConstruct extends Construct {
 
     this.albSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'HTTP from internet');
     this.albSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'HTTPS from internet');
-    // Egress to any ECS task on any port — ECS SGs restrict the other side
     this.albSecurityGroup.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.allTcp(), 'Outbound to ECS tasks');
 
     // Shared public ALB in public subnets
@@ -40,7 +39,7 @@ export class AlbConstruct extends Construct {
       internetFacing: true,
       securityGroup: this.albSecurityGroup,
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
-      deletionProtection: false, // set true for prod
+      deletionProtection: false,
       dropInvalidHeaderFields: true,
     });
 
@@ -49,8 +48,7 @@ export class AlbConstruct extends Construct {
       domainName: config.alb.hostedZoneName,
     });
 
-    // Wildcard ACM certificate — covers ALL subdomains (*.in.cld)
-    // so adding new apps never requires a new cert
+    // Wildcard ACM certificate — covers all subdomains (*.in.cld)
     const certificate = new acm.Certificate(this, 'WildcardCert', {
       domainName: config.alb.certificateDomainName,
       validation: acm.CertificateValidation.fromDns(this.hostedZone),
@@ -66,11 +64,10 @@ export class AlbConstruct extends Construct {
       }),
     });
 
-    // Shared HTTPS listener — ECS stacks attach target groups to this
+    // Shared HTTPS listener — ECS apps attach their target groups here
     this.httpsListener = this.alb.addListener('HttpsListener', {
       port: 443,
       certificates: [certificate],
-      // Default 404 — each app adds its own listener rule
       defaultAction: elbv2.ListenerAction.fixedResponse(404, {
         contentType: 'text/plain',
         messageBody: 'No route matched',
@@ -78,7 +75,7 @@ export class AlbConstruct extends Construct {
       sslPolicy: elbv2.SslPolicy.RECOMMENDED_TLS,
     });
 
-    // Outputs — ECS stacks import these
+    // Outputs
     new cdk.CfnOutput(this, 'AlbArn', {
       value: this.alb.loadBalancerArn,
       exportName: 'LandingZone-AlbArn',

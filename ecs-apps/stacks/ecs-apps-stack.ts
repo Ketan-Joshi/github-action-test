@@ -1,11 +1,11 @@
-// ecs-apps/lib/ecs-apps-stack.ts
+// ecs-apps/stacks/ecs-apps-stack.ts
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
-import { EcsServiceConstruct } from './ecs-service-construct';
+import { EcsServiceConstruct } from '../constructs/ecs-service-construct';
 import { config } from '../../shared/config';
 
 export interface EcsAppsStackProps extends cdk.StackProps {
@@ -30,8 +30,8 @@ export class EcsAppsStack extends cdk.Stack {
       enableFargateCapacityProviders: true,
     });
 
-    // Auto-create a Fargate service for every app defined in config.ecsApps
-    // To add a new service: just add an entry to shared/config.ts → ecsApps[]
+    // Auto-create a Fargate service for every app in config.ecsApps
+    // To add a new service: just add an entry to shared/config.ts
     for (const appConfig of config.ecsApps) {
       new EcsServiceConstruct(this, appConfig.id, {
         vpc: props.vpc,

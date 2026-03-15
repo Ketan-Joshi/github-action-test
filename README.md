@@ -8,22 +8,29 @@ Add a new ECS service by adding a single entry to `shared/config.ts` — no othe
 ```
 cdk-nginx-platform/
 ├── bin/
-│   └── app.ts                        # Single entrypoint for both stacks
+│   └── app.ts                                  # Single entrypoint for both stacks
+│
 ├── shared/
-│   └── config.ts                     # ← ADD NEW APPS HERE
+│   └── config.ts                               # ← ADD NEW APPS HERE
+│
 ├── landing-zone/
-│   └── lib/
-│       ├── landing-zone-stack.ts     # VPC + shared ALB in one stack
-│       ├── vpc-construct.ts          # VPC, 2 public + 2 private subnets, NAT GW
-│       └── alb-construct.ts          # Shared ALB, wildcard cert, Route53
+│   ├── constructs/
+│   │   ├── vpc-construct.ts                    # VPC, subnets, NAT GW, flow logs
+│   │   └── alb-construct.ts                    # Shared ALB, wildcard cert, Route53
+│   └── stacks/
+│       └── landing-zone-stack.ts               # Assembles VPC + ALB constructs
+│
 ├── ecs-apps/
-│   └── lib/
-│       ├── ecs-apps-stack.ts         # Loops over config.ecsApps, creates all services
-│       └── ecs-service-construct.ts  # Generic reusable Fargate service construct
+│   ├── constructs/
+│   │   └── ecs-service-construct.ts            # Reusable Fargate service construct
+│   └── stacks/
+│       └── ecs-apps-stack.ts                   # Loops config → creates all services
+│
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml                # GitHub Actions CI/CD pipeline
-├── github-oidc-role.yml              # One-time CloudFormation setup for OIDC auth
+│       └── deploy.yml                          # GitHub Actions CI/CD
+│
+├── github-oidc-role.yml                        # One-time OIDC role setup
 ├── cdk.json
 ├── package.json
 └── tsconfig.json
@@ -46,7 +53,7 @@ cdk-nginx-platform/
               ┌────────┴────────┐
               │                 │
       ┌───────▼──────┐  ┌───────▼──────┐
-      │  nginx-app   │  │   api-app    │  ... more apps
+      │  nginx-app   │  │   api-app    │  ... more apps from config
       │   Fargate    │  │   Fargate    │
       │ private nets │  │ private nets │
       └──────────────┘  └──────────────┘
@@ -54,42 +61,54 @@ cdk-nginx-platform/
           NAT GW → Internet (image pulls, AWS APIs)
 ```
 
-## Adding a New ECS App
+## Constructs vs Stacks
 
-Edit **only** `shared/config.ts` — add a new entry to `ecsApps[]`:
+```
+Stacks (deployable units)         Constructs (reusable building blocks)
+─────────────────────────         ──────────────────────────────────────
+LandingZoneStack                  VpcConstruct
+  └── uses VpcConstruct             └── VPC, 2 public + 2 private subnets
+  └── uses AlbConstruct             └── NAT Gateway, Flow Logs
 
-```ts
-{
-  id: 'ApiApp',                      // Unique CDK construct ID
-  serviceName: 'api-service',
-  containerName: 'api',
-  containerPort: 3000,
-  image: 'my-ecr-repo/api:latest',
-  cpu: 512,
-  memoryLimitMiB: 1024,
-  desiredCount: 2,
-  hostHeader: 'api-app.in.cld',      // Host-based ALB routing
-  dnsRecordName: 'api-app',          // → api-app.in.cld
-  minCapacity: 2,
-  maxCapacity: 20,
-  listenerRulePriority: 200,         // Must be unique across all apps
-},
+EcsAppsStack                      AlbConstruct
+  └── uses EcsServiceConstruct      └── Public ALB, wildcard cert
+        (once per app in config)    └── HTTPS listener, HTTP redirect
+
+                                  EcsServiceConstruct (reused per app)
+                                    └── Fargate service, task def
+                                    └── Target group, listener rule
+                                    └── Route53 record, auto scaling
 ```
 
-Then push to `main` — GitHub Actions handles the rest.
+## Adding a New ECS App
 
-## Security Practices
+Edit **only** `shared/config.ts`:
 
-- ECS tasks in **private subnets** only
-- Each ECS service SG only allows inbound from **ALB SG**
-- Shared ALB enforces **HTTPS** (HTTP → 301 redirect)
-- **TLS 1.2+** only (`RECOMMENDED_TLS` policy)
-- **Wildcard ACM cert** — no new cert needed per app
-- `dropInvalidHeaderFields: true` on ALB
-- **VPC Flow Logs** enabled
-- Task roles follow **least privilege**
-- GitHub Actions uses **OIDC** (no long-lived AWS keys)
-- Circuit breaker with **automatic rollback**
+```ts
+ecsApps: [
+  {
+    id: 'NginxApp',           // existing app
+    ...
+  },
+  {
+    id: 'ApiApp',             // ← new app
+    serviceName: 'api-service',
+    containerName: 'api',
+    containerPort: 3000,
+    image: 'my-ecr-repo/api:latest',
+    cpu: 512,
+    memoryLimitMiB: 1024,
+    desiredCount: 2,
+    hostHeader: 'api-app.in.cld',
+    dnsRecordName: 'api-app',
+    minCapacity: 2,
+    maxCapacity: 20,
+    listenerRulePriority: 200,  // must be unique
+  },
+]
+```
+
+Push to `main` — GitHub Actions handles the rest.
 
 ## One-Time Setup
 
@@ -100,19 +119,21 @@ aws cloudformation deploy \
   --stack-name github-actions-oidc \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    GitHubOrg=YOUR_ORG \
-    GitHubRepo=YOUR_REPO \
+    GitHubOrg=YOUR_GITHUB_USERNAME \
+    GitHubRepo=YOUR_REPO_NAME \
+    AccountId=$(aws sts get-caller-identity --query Account --output text) \
+    CreateOidcProvider=true \
     BranchName=main
 ```
 
 ### 2. Add GitHub Secrets
-Go to **Settings → Secrets → Actions** in your repo and add:
+**Settings → Secrets and variables → Actions**
 
 | Secret | Value |
 |--------|-------|
-| `AWS_ROLE_ARN` | Output from step 1 |
+| `AWS_ROLE_ARN` | ARN from step 1 |
 | `CDK_DEFAULT_ACCOUNT` | Your AWS account ID |
-| `CDK_DEFAULT_REGION` | e.g. `ap-southeast-2` |
+| `CDK_DEFAULT_REGION` | `ap-southeast-2` |
 
 ### 3. Bootstrap CDK (once per account/region)
 ```bash
@@ -124,8 +145,8 @@ npx cdk bootstrap aws://ACCOUNT_ID/ap-southeast-2
 | Event | What happens |
 |-------|-------------|
 | PR to `main` | Build + `cdk diff` posted as PR comment |
-| Push to `main` | Deploy `LandingZoneStack` → then `EcsAppsStack` |
-| Manual trigger | Available via `workflow_dispatch` |
+| Push to `main` | Bootstrap → Deploy LandingZone → Deploy ECS Apps |
+| Manual trigger | Available via `workflow_dispatch` in Actions tab |
 
 ## Local Commands
 
@@ -137,6 +158,6 @@ npm run deploy         # deploy both stacks
 npm run deploy:lz      # deploy landing zone only
 npm run deploy:ecs     # deploy ECS apps only
 
-npm run destroy:ecs    # destroy ECS apps first
+npm run destroy:ecs    # destroy ECS first
 npm run destroy:lz     # then destroy landing zone
 ```

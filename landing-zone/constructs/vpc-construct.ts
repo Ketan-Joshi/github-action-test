@@ -1,4 +1,4 @@
-// landing-zone/lib/vpc-construct.ts
+// landing-zone/constructs/vpc-construct.ts
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import { Construct } from 'constructs';
@@ -37,7 +37,7 @@ export class VpcConstruct extends Construct {
       trafficType: ec2.FlowLogTrafficType.ALL,
     });
 
-    // Exports for cross-stack use
+    // Outputs for cross-stack reference
     new cdk.CfnOutput(this, 'VpcId', {
       value: this.vpc.vpcId,
       exportName: 'LandingZone-VpcId',
