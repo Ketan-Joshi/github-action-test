@@ -36,10 +36,5 @@ export interface EnvironmentConfig {
     certificateDomainName: string;
   };
   ecsApps: EcsAppConfig[];
-  tags: {
-    Project: string;
-    ManagedBy: string;
-    Environment: string;
-    DeployedBy: string;
-  };
+  tags: Record<string, string>;
 }

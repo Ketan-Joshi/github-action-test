@@ -6,7 +6,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
 import { EcsServiceConstruct } from '../constructs/ecs-service-construct';
-import { config } from '../../shared/config.types';
+import { config } from '../../shared/config';
 
 export interface EcsAppsStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
@@ -20,7 +20,7 @@ export class EcsAppsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: EcsAppsStackProps) {
     super(scope, id, props);
 
-    Object.entries(config.tags).forEach(([k, v]) => cdk.Tags.of(this).add(k, v));
+    Object.entries(config.tags).forEach(([k, v]: [string, string]) => cdk.Tags.of(this).add(k, v));
 
     // Shared ECS Cluster — all apps share one cluster
     const cluster = new ecs.Cluster(this, 'SharedCluster', {
