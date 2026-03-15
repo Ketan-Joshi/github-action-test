@@ -14,7 +14,6 @@ export class VpcConstruct extends Construct {
       ipAddresses: ec2.IpAddresses.cidr(config.vpc.cidr),
       maxAzs: config.vpc.maxAzs,
       natGateways: config.vpc.natGateways,
-
       subnetConfiguration: [
         {
           cidrMask: 24,
@@ -27,22 +26,18 @@ export class VpcConstruct extends Construct {
           subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
         },
       ],
-
-      // Enable DNS for ECS service discovery
       enableDnsHostnames: true,
       enableDnsSupport: true,
-
-      // Restrict default security group (security best practice)
       restrictDefaultSecurityGroup: true,
     });
 
-    // VPC Flow Logs — security best practice for auditing traffic
-    this.vpc.addFlowLog('FlowLogCloudWatch', {
+    // VPC Flow Logs for traffic auditing
+    this.vpc.addFlowLog('FlowLog', {
       destination: ec2.FlowLogDestination.toCloudWatchLogs(),
       trafficType: ec2.FlowLogTrafficType.ALL,
     });
 
-    // SSM exports — allows ECS stack to import without hard coupling
+    // Exports for cross-stack use
     new cdk.CfnOutput(this, 'VpcId', {
       value: this.vpc.vpcId,
       exportName: 'LandingZone-VpcId',

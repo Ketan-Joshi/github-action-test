@@ -1,0 +1,66 @@
+# github-oidc-role.yml
+# CloudFormation template to create the IAM role for GitHub Actions OIDC auth.
+# Deploy this ONCE manually before the pipeline runs:
+#   aws cloudformation deploy \
+#     --template-file github-oidc-role.yml \
+#     --stack-name github-actions-oidc \
+#     --capabilities CAPABILITY_NAMED_IAM \
+#     --parameter-overrides GitHubOrg=YOUR_ORG GitHubRepo=YOUR_REPO
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IAM Role for GitHub Actions OIDC — CDK deployments
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Description: GitHub organisation or username
+  GitHubRepo:
+    Type: String
+    Description: GitHub repository name
+  BranchName:
+    Type: String
+    Default: main
+    Description: Branch allowed to deploy
+
+Resources:
+  # GitHub OIDC Provider (only needed once per AWS account)
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  # IAM Role assumed by GitHub Actions
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: github-actions-cdk-deploy
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref GitHubOidcProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                # Only allow the specific repo + branch to assume this role
+                token.actions.githubusercontent.com:sub:
+                  !Sub repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/${BranchName}
+      ManagedPolicies:
+        - arn:aws:iam::aws:policy/AdministratorAccess  # Scope down for tighter security
+      Tags:
+        - Key: ManagedBy
+          Value: CloudFormation
+        - Key: Purpose
+          Value: GitHub-Actions-CDK-Deploy
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt GitHubActionsRole.Arn
+    Description: Add this as AWS_ROLE_ARN secret in GitHub
