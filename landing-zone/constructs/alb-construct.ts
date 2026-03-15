@@ -43,9 +43,21 @@ export class AlbConstruct extends Construct {
       dropInvalidHeaderFields: true,
     });
 
-    // Hosted zone lookup
-    this.hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
-      domainName: config.alb.hostedZoneName,
+    // Read hosted zone from CDK context — passed via --context flag in CI
+    // This avoids fromLookup (needs context cache) and hardcoded IDs
+    const hostedZoneId = this.node.tryGetContext('hosted-zone-id');
+    const hostedZoneName = this.node.tryGetContext('hosted-zone-name') ?? config.alb.hostedZoneName;
+
+    if (!hostedZoneId) {
+      throw new Error(
+        'Missing CDK context: hosted-zone-id\n' +
+        'Pass it via: --context hosted-zone-id=ZXXXXX --context hosted-zone-name=sample.in.cld'
+      );
+    }
+
+    this.hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
+      hostedZoneId,
+      zoneName: hostedZoneName,
     });
 
     // Wildcard ACM certificate — covers all subdomains (*.in.cld)

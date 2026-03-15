@@ -182,8 +182,22 @@ jobs:
       - name: CDK Bootstrap
         run: npx cdk bootstrap aws://${{ secrets.CDK_DEFAULT_ACCOUNT }}/${{ secrets.CDK_DEFAULT_REGION }}
 
+      - name: Resolve Hosted Zone ID
+        id: hosted_zone
+        run: |
+          ZONE_ID=$(aws route53 list-hosted-zones \
+            --query "HostedZones[?Name=='${{ secrets.HOSTED_ZONE_NAME }}.'].Id" \
+            --output text | sed 's|/hostedzone/||')
+          echo "zone_id=$ZONE_ID" >> $GITHUB_OUTPUT
+          echo "Resolved hosted zone: $ZONE_ID"
+
       - name: Deploy Landing Zone Stack
-        run: npx cdk deploy "${{ needs.resolve-env.outputs.target_env }}-LandingZoneStack" --require-approval never --progress events
+        run: |
+          npx cdk deploy "${{ needs.resolve-env.outputs.target_env }}-LandingZoneStack" \
+            --require-approval never \
+            --progress events \
+            --context "hosted-zone-id=${{ steps.hosted_zone.outputs.zone_id }}" \
+            --context "hosted-zone-name=${{ secrets.HOSTED_ZONE_NAME }}"
 
   # ── Job 5: Deploy ECS Apps ─────────────────────────────────
   deploy-ecs-apps:
