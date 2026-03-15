@@ -94,7 +94,7 @@ export class EcsServiceConstruct extends Construct {
     // ECS Security Group — ONLY allows traffic from the shared ALB
     const ecsSg = new ec2.SecurityGroup(this, 'EcsSg', {
       vpc,
-      description: `${appConfig.serviceName} — allow inbound from shared ALB only`,
+      description: `${appConfig.serviceName} allow inbound from shared ALB only`,
       allowAllOutbound: true,
     });
 

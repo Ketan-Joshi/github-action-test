@@ -25,7 +25,7 @@ export class AlbConstruct extends Construct {
     // ALB Security Group
     this.albSecurityGroup = new ec2.SecurityGroup(this, 'AlbSg', {
       vpc,
-      description: 'Shared ALB — allows HTTP/HTTPS from internet',
+      description: 'Shared ALB allows HTTP/HTTPS from internet',
       allowAllOutbound: false,
     });
 
