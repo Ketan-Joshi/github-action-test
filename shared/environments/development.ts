@@ -8,7 +8,7 @@ export const developmentConfig: EnvironmentConfig = {
   },
 
   // Unique prefix — applied to ALL resource names to avoid clashes
-  envPrefix: 'dev',
+  envPrefix: 'development',
 
   vpc: {
     cidr: '10.0.0.0/16',      // dev VPC CIDR

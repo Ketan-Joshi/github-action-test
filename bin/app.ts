@@ -19,7 +19,7 @@ const prefix = config.envPrefix;
 const landingZone = new LandingZoneStack(app, `${prefix}-LandingZoneStack`, {
   env,
   description: `[${prefix}] Landing Zone — VPC, subnets, NAT GW, shared ALB`,
-  terminationProtection: prefix === 'prod', // only protect prod
+  terminationProtection: prefix === 'production', // only protect prod
 });
 
 // ── Stack 2: ECS Apps ──────────────────────────────────────
