@@ -17,8 +17,8 @@ export const developmentConfig: EnvironmentConfig = {
   },
 
   alb: {
-    hostedZoneName: 'sample.in.cld',
-    certificateDomainName: '*.sample.in.cld',
+    hostedZoneName: 'cifoinfotech.com',
+    certificateDomainName: '*.cifoinfotech.com',
   },
 
   ecsApps: [
@@ -31,7 +31,7 @@ export const developmentConfig: EnvironmentConfig = {
       cpu: 256,
       memoryLimitMiB: 512,
       desiredCount: 1,
-      hostHeader: 'dev-nginx.sample.in.cld',       // prefixed subdomain
+      hostHeader: 'dev-nginx.cifoinfotech.com',       // prefixed subdomain
       dnsRecordName: 'dev-nginx',
       minCapacity: 1,
       maxCapacity: 3,

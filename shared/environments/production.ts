@@ -17,8 +17,8 @@ export const productionConfig: EnvironmentConfig = {
   },
 
   alb: {
-    hostedZoneName: 'sample.in.cld',
-    certificateDomainName: '*.sample.in.cld',
+    hostedZoneName: 'cifoinfotech.com',
+    certificateDomainName: '*.cifoinfotech.com',
   },
 
   ecsApps: [
@@ -31,7 +31,7 @@ export const productionConfig: EnvironmentConfig = {
       cpu: 512,
       memoryLimitMiB: 1024,
       desiredCount: 2,
-      hostHeader: 'nginx.sample.in.cld',           // prod uses clean subdomain
+      hostHeader: 'nginx.cifoinfotech.com',           // prod uses clean subdomain
       dnsRecordName: 'nginx',
       minCapacity: 2,
       maxCapacity: 10,
