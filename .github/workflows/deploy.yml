@@ -179,9 +179,6 @@ jobs:
           aws-region: ${{ secrets.CDK_DEFAULT_REGION }}
           role-session-name: GitHubActions-LandingZone-${{ needs.resolve-env.outputs.target_env }}
 
-      - name: CDK Bootstrap
-        run: npx cdk bootstrap aws://${{ secrets.CDK_DEFAULT_ACCOUNT }}/${{ secrets.CDK_DEFAULT_REGION }}
-
       - name: Resolve Hosted Zone ID
         id: hosted_zone
         run: |
@@ -190,6 +187,12 @@ jobs:
             --output text | sed 's|/hostedzone/||')
           echo "zone_id=$ZONE_ID" >> $GITHUB_OUTPUT
           echo "Resolved hosted zone: $ZONE_ID"
+
+      - name: CDK Bootstrap
+        run: |
+          npx cdk bootstrap aws://${{ secrets.CDK_DEFAULT_ACCOUNT }}/${{ secrets.CDK_DEFAULT_REGION }} \
+            --context "hosted-zone-id=${{ steps.hosted_zone.outputs.zone_id }}" \
+            --context "hosted-zone-name=${{ secrets.HOSTED_ZONE_NAME }}"
 
       - name: Deploy Landing Zone Stack
         run: |
