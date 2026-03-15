@@ -24,33 +24,35 @@ export const productionConfig: EnvironmentConfig = {
   ecsApps: [
     {
       id: 'NginxApp',
-      serviceName: 'prod-nginx-service',        // prefixed
+      serviceName: 'prod-nginx-service',
       containerName: 'nginx',
       containerPort: 80,
       image: 'nginx:latest',
       cpu: 512,
       memoryLimitMiB: 1024,
       desiredCount: 2,
-      hostHeader: 'nginx.cifoinfotech.com',           // prod uses clean subdomain
+      hostHeader: 'nginx.cifoinfotech.com',
       dnsRecordName: 'nginx',
       minCapacity: 2,
       maxCapacity: 10,
-      listenerRulePriority: 200,                // different priority from dev
+      listenerRulePriority: 200,
+      healthCheckCommand: 'curl -f http://localhost:80/ || exit 1',  // curl available in nginx
     },
     {
       id: 'HttpdApp',
-      serviceName: 'prod-httpd-service',        // prefixed
+      serviceName: 'prod-httpd-service',
       containerName: 'httpd',
-      containerPort: 8080,
+      containerPort: 80,
       image: 'httpd:latest',
       cpu: 512,
       memoryLimitMiB: 1024,
       desiredCount: 2,
-      hostHeader: 'httpd.cifoinfotech.com',           // prod uses clean subdomain
+      hostHeader: 'httpd.cifoinfotech.com',
       dnsRecordName: 'httpd',
       minCapacity: 2,
       maxCapacity: 10,
-      listenerRulePriority: 100,                // different priority from dev
+      listenerRulePriority: 100,
+      // healthCheckCommand not set — httpd has no curl/wget, container health check skipped
     },
   ],
 

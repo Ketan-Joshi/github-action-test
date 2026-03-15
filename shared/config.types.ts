@@ -16,6 +16,7 @@ export interface EcsAppConfig {
   minCapacity: number;
   maxCapacity: number;
   listenerRulePriority: number;
+  healthCheckCommand?: string;  // optional — if not provided, container health check is skipped
 }
 
 export interface EnvironmentConfig {

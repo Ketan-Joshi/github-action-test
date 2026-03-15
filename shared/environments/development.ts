@@ -24,18 +24,19 @@ export const developmentConfig: EnvironmentConfig = {
   ecsApps: [
     {
       id: 'NginxApp',
-      serviceName: 'dev-nginx-service',         // prefixed
+      serviceName: 'dev-nginx-service',
       containerName: 'nginx',
       containerPort: 80,
       image: 'nginx:latest',
       cpu: 256,
       memoryLimitMiB: 512,
       desiredCount: 1,
-      hostHeader: 'dev-nginx.cifoinfotech.com',       // prefixed subdomain
+      hostHeader: 'dev-nginx.cifoinfotech.com',
       dnsRecordName: 'dev-nginx',
       minCapacity: 1,
       maxCapacity: 3,
       listenerRulePriority: 100,
+      healthCheckCommand: 'curl -f http://localhost:80/ || exit 1',  // curl available in nginx
     },
   ],
 

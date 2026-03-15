@@ -82,13 +82,17 @@ export class EcsServiceConstruct extends Construct {
         streamPrefix: appConfig.containerName,
         logGroup,
       }),
-      healthCheck: {
-        command: ['CMD-SHELL', `curl -f http://localhost:${appConfig.containerPort}/ || exit 1`],
-        interval: cdk.Duration.seconds(30),
-        timeout: cdk.Duration.seconds(5),
-        retries: 3,
-        startPeriod: cdk.Duration.seconds(10),
-      },
+      // Health check is optional — only added if healthCheckCommand is provided in config
+      // For images without curl/wget (e.g. httpd), leave healthCheckCommand unset
+      ...(appConfig.healthCheckCommand && {
+        healthCheck: {
+          command: ['CMD-SHELL', appConfig.healthCheckCommand],
+          interval: cdk.Duration.seconds(30),
+          timeout: cdk.Duration.seconds(5),
+          retries: 3,
+          startPeriod: cdk.Duration.seconds(10),
+        },
+      }),
     });
 
     // ECS Security Group — ONLY allows traffic from the shared ALB
