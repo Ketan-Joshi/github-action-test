@@ -51,7 +51,7 @@ export class AlbConstruct extends Construct {
     if (!hostedZoneId) {
       throw new Error(
         'Missing CDK context: hosted-zone-id\n' +
-        'Pass it via: --context hosted-zone-id=ZXXXXX --context hosted-zone-name=sample.in.cld'
+        'Pass it via: --context hosted-zone-id=ZXXXXX --context hosted-zone-name=cifoinfotech.com'
       );
     }
 
