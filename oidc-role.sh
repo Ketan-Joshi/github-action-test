@@ -4,4 +4,5 @@ aws cloudformation deploy \
   --template-file github-oidc-role.yml \
   --stack-name github-actions-oidc \
   --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides GitHubOrg=Ketan-Joshi GitHubRepo=github-action-test
+  --parameter-overrides GitHubOrg=Ketan-Joshi GitHubRepo=github-action-test \
+  --region us-east-1
