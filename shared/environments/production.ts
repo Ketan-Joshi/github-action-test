@@ -37,6 +37,21 @@ export const productionConfig: EnvironmentConfig = {
       maxCapacity: 10,
       listenerRulePriority: 200,                // different priority from dev
     },
+    {
+      id: 'HttpdApp',
+      serviceName: 'prod-httpd-service',        // prefixed
+      containerName: 'httpd',
+      containerPort: 80,
+      image: 'httpd:latest',
+      cpu: 512,
+      memoryLimitMiB: 1024,
+      desiredCount: 2,
+      hostHeader: 'httpd.cifoinfotech.com',           // prod uses clean subdomain
+      dnsRecordName: 'httpd',
+      minCapacity: 2,
+      maxCapacity: 10,
+      listenerRulePriority: 200,                // different priority from dev
+    },
   ],
 
   tags: {
