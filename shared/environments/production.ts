@@ -50,7 +50,7 @@ export const productionConfig: EnvironmentConfig = {
       dnsRecordName: 'httpd',
       minCapacity: 2,
       maxCapacity: 10,
-      listenerRulePriority: 200,                // different priority from dev
+      listenerRulePriority: 100,                // different priority from dev
     },
   ],
 
