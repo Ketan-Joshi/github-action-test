@@ -13,7 +13,7 @@ Description: IAM Role for GitHub Actions OIDC — CDK deployments
 Parameters:
   GitHubOrg:
     Type: String
-    Description: GitHub organisation or username
+    Description: GitHub organisation or personal username (e.g. ketanjoshi)
   GitHubRepo:
     Type: String
     Description: GitHub repository name
@@ -21,11 +21,26 @@ Parameters:
     Type: String
     Default: main
     Description: Branch allowed to deploy
+  AccountId:
+    Type: String
+    Description: Your AWS Account ID (12 digits)
+  CreateOidcProvider:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Set to true only if GitHub OIDC provider does NOT yet exist in this account
+
+Conditions:
+  ShouldCreateOidcProvider: !Equals [!Ref CreateOidcProvider, 'true']
 
 Resources:
-  # GitHub OIDC Provider (only needed once per AWS account)
+  # Only created if CreateOidcProvider=true
+  # Check first: aws iam list-open-id-connect-providers
   GitHubOidcProvider:
     Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOidcProvider
     Properties:
       Url: https://token.actions.githubusercontent.com
       ClientIdList:
@@ -43,7 +58,8 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Ref GitHubOidcProvider
+              # Reference existing OIDC provider ARN directly (no circular dependency)
+              Federated: !Sub arn:aws:iam::${AccountId}:oidc-provider/token.actions.githubusercontent.com
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
@@ -52,8 +68,8 @@ Resources:
                 # Only allow the specific repo + branch to assume this role
                 token.actions.githubusercontent.com:sub:
                   !Sub repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/${BranchName}
-      ManagedPolicies:
-        - arn:aws:iam::aws:policy/AdministratorAccess  # Scope down for tighter security
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
       Tags:
         - Key: ManagedBy
           Value: CloudFormation
