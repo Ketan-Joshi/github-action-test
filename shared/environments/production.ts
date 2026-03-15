@@ -41,7 +41,7 @@ export const productionConfig: EnvironmentConfig = {
       id: 'HttpdApp',
       serviceName: 'prod-httpd-service',        // prefixed
       containerName: 'httpd',
-      containerPort: 80,
+      containerPort: 8080,
       image: 'httpd:latest',
       cpu: 512,
       memoryLimitMiB: 1024,

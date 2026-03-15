@@ -1,21 +1,15 @@
 # .github/workflows/deploy.yml
-# Multi-account CDK deployment via GitHub Environments
+# Multi-environment CDK deployment via GitHub Environments
 #
-# GitHub Environment Secrets (Settings → Environments):
-#
-#   development:
-#     AWS_ROLE_ARN          → arn:aws:iam::DEV_ACCOUNT_ID:role/github-actions-cdk-deploy
-#     CDK_DEFAULT_ACCOUNT   → 111111111111
-#     CDK_DEFAULT_REGION    → ap-southeast-2
-#
-#   production:
-#     AWS_ROLE_ARN          → arn:aws:iam::PROD_ACCOUNT_ID:role/github-actions-cdk-deploy
-#     CDK_DEFAULT_ACCOUNT   → 222222222222
-#     CDK_DEFAULT_REGION    → ap-southeast-2
+# GitHub Secrets (Settings -> Secrets -> Actions):
+#   AWS_ROLE_ARN          -> arn:aws:iam::ACCOUNT_ID:role/github-actions-cdk-deploy
+#   CDK_DEFAULT_ACCOUNT   -> 682363910843
+#   CDK_DEFAULT_REGION    -> ap-southeast-2 (or us-east-1)
+#   HOSTED_ZONE_NAME      -> cifoinfotech.com
 #
 # Branch strategy:
-#   develop → deploys to development environment
-#   main    → deploys to production environment
+#   develop -> deploys to development environment
+#   main    -> deploys to production environment (PR only, protected branch)
 
 name: Deploy CDK Stacks
 
@@ -26,8 +20,8 @@ on:
                      # main is protected — changes only via PR
   pull_request:
     branches:
-      - main         # PR to main → diff + deploy to production after merge
-      - develop      # PR to develop → diff only
+      - main         # PR to main -> diff + deploy to production after merge
+      - develop      # PR to develop -> diff only
   workflow_dispatch:
     inputs:
       environment:
@@ -69,7 +63,6 @@ jobs:
         run: npm run build
 
   # ── Job 2: Resolve target environment ──────────────────────
-  # Determines which GitHub Environment to use based on branch
   resolve-env:
     name: Resolve Environment
     runs-on: ubuntu-latest
@@ -81,18 +74,15 @@ jobs:
         id: resolve
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            # Manual trigger — user picks from dropdown
             echo "target_env=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
           elif [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.base_ref }}" == "main" ]; then
-            # Push to main OR PR targeting main → production
             echo "target_env=production" >> $GITHUB_OUTPUT
           else
-            # Push to develop OR PR targeting develop → development
             echo "target_env=development" >> $GITHUB_OUTPUT
           fi
 
       - name: Print target environment
-        run: echo "Deploying to → ${{ steps.resolve.outputs.target_env }}"
+        run: echo "Deploying to -> ${{ steps.resolve.outputs.target_env }}"
 
   # ── Job 3: CDK Diff (PR only) ──────────────────────────────
   diff:
@@ -100,7 +90,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: resolve-env
     if: github.event_name == 'pull_request'
-    # Uses the environment secrets of whichever branch the PR targets
     environment: ${{ needs.resolve-env.outputs.target_env }}
     env:
       CDK_DEFAULT_ACCOUNT: ${{ secrets.CDK_DEFAULT_ACCOUNT }}
@@ -126,18 +115,20 @@ jobs:
           aws-region: ${{ secrets.CDK_DEFAULT_REGION }}
           role-session-name: GitHubActions-CDKDiff-${{ needs.resolve-env.outputs.target_env }}
 
-      - name: CDK Diff — Landing Zone
-        id: diff_lz
+      - name: Resolve Hosted Zone ID
+        id: hosted_zone
         run: |
-          DIFF_OUTPUT=$(npx cdk diff LandingZoneStack 2>&1 || true)
-          echo "output<<EOF" >> $GITHUB_OUTPUT
-          echo "$DIFF_OUTPUT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          ZONE_ID=$(aws route53 list-hosted-zones \
+            --query "HostedZones[?Name=='${{ secrets.HOSTED_ZONE_NAME }}.'].Id" \
+            --output text | sed 's|/hostedzone/||')
+          echo "zone_id=$ZONE_ID" >> $GITHUB_OUTPUT
 
-      - name: CDK Diff — ECS Apps
-        id: diff_ecs
+      - name: CDK Diff - All Stacks
+        id: diff_all
         run: |
-          DIFF_OUTPUT=$(npx cdk diff EcsAppsStack 2>&1 || true)
+          DIFF_OUTPUT=$(npx cdk diff --all \
+            --context "hosted-zone-id=${{ steps.hosted_zone.outputs.zone_id }}" \
+            --context "hosted-zone-name=${{ secrets.HOSTED_ZONE_NAME }}" 2>&1 || true)
           echo "output<<EOF" >> $GITHUB_OUTPUT
           echo "$DIFF_OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -147,19 +138,11 @@ jobs:
         with:
           script: |
             const env = '${{ needs.resolve-env.outputs.target_env }}';
-            const lzDiff = `${{ steps.diff_lz.outputs.output }}`;
-            const ecsDiff = `${{ steps.diff_ecs.outputs.output }}`;
+            const diff = `${{ steps.diff_all.outputs.output }}`;
             const body = [
-              `## CDK Diff — ${env}`,
-              '',
-              '### LandingZoneStack',
+              `## CDK Diff - ${env}`,
               '```',
-              lzDiff,
-              '```',
-              '',
-              '### EcsAppsStack',
-              '```',
-              ecsDiff,
+              diff,
               '```',
             ].join('\n');
             github.rest.issues.createComment({
@@ -175,7 +158,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: resolve-env
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    # Automatically picks the right secrets based on the resolved environment
     environment: ${{ needs.resolve-env.outputs.target_env }}
     env:
       CDK_DEFAULT_ACCOUNT: ${{ secrets.CDK_DEFAULT_ACCOUNT }}
@@ -224,9 +206,9 @@ jobs:
             --context "hosted-zone-id=${{ steps.hosted_zone.outputs.zone_id }}" \
             --context "hosted-zone-name=${{ secrets.HOSTED_ZONE_NAME }}"
 
-  # ── Job 5: Deploy ECS Apps ─────────────────────────────────
-  deploy-ecs-apps:
-    name: Deploy ECS Apps (${{ needs.resolve-env.outputs.target_env }})
+  # ── Job 5: Deploy ECS Cluster ──────────────────────────────
+  deploy-ecs-cluster:
+    name: Deploy ECS Cluster (${{ needs.resolve-env.outputs.target_env }})
     runs-on: ubuntu-latest
     needs: [resolve-env, deploy-landing-zone]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -253,7 +235,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.CDK_DEFAULT_REGION }}
-          role-session-name: GitHubActions-EcsApps-${{ needs.resolve-env.outputs.target_env }}
+          role-session-name: GitHubActions-EcsCluster-${{ needs.resolve-env.outputs.target_env }}
 
       - name: Resolve Hosted Zone ID
         id: hosted_zone
@@ -264,10 +246,61 @@ jobs:
           echo "zone_id=$ZONE_ID" >> $GITHUB_OUTPUT
           echo "Resolved hosted zone: $ZONE_ID"
 
-      - name: Deploy ECS Apps Stack
+      - name: Deploy ECS Cluster Stack
         run: |
-          npx cdk deploy "${{ needs.resolve-env.outputs.target_env }}-EcsAppsStack" \
+          npx cdk deploy "${{ needs.resolve-env.outputs.target_env }}-EcsClusterStack" \
             --require-approval never \
             --progress events \
             --context "hosted-zone-id=${{ steps.hosted_zone.outputs.zone_id }}" \
             --context "hosted-zone-name=${{ secrets.HOSTED_ZONE_NAME }}"
+
+  # ── Job 6: Deploy ECS Services (one stack per service) ─────
+  deploy-ecs-services:
+    name: Deploy ECS Services (${{ needs.resolve-env.outputs.target_env }})
+    runs-on: ubuntu-latest
+    needs: [resolve-env, deploy-ecs-cluster]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: ${{ needs.resolve-env.outputs.target_env }}
+    env:
+      CDK_DEFAULT_ACCOUNT: ${{ secrets.CDK_DEFAULT_ACCOUNT }}
+      CDK_DEFAULT_REGION: ${{ secrets.CDK_DEFAULT_REGION }}
+      APP_ENV: ${{ needs.resolve-env.outputs.target_env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.CDK_DEFAULT_REGION }}
+          role-session-name: GitHubActions-EcsServices-${{ needs.resolve-env.outputs.target_env }}
+
+      - name: Resolve Hosted Zone ID
+        id: hosted_zone
+        run: |
+          ZONE_ID=$(aws route53 list-hosted-zones \
+            --query "HostedZones[?Name=='${{ secrets.HOSTED_ZONE_NAME }}.'].Id" \
+            --output text | sed 's|/hostedzone/||')
+          echo "zone_id=$ZONE_ID" >> $GITHUB_OUTPUT
+          echo "Resolved hosted zone: $ZONE_ID"
+
+      - name: Deploy All ECS Service Stacks
+        # Deploys all *AppStack stacks — e.g. production-NginxAppStack, production-HttpdAppStack
+        # Adding a new service to config.ecsApps automatically creates and deploys a new stack
+        run: |
+          npx cdk deploy "${{ needs.resolve-env.outputs.target_env }}-*AppStack" \
+            --require-approval never \
+            --progress events \
+            --context "hosted-zone-id=${{ steps.hosted_zone.outputs.zone_id }}" \
+            --context "hosted-zone-name=${{ secrets.HOSTED_ZONE_NAME }}" \
+            --ignore-no-stacks
