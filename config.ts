@@ -4,7 +4,7 @@
 export const config = {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION ?? 'ap-southeast-2',
+    region: process.env.CDK_DEFAULT_REGION ?? 'us-east-1',
   },
 
   // Landing Zone
@@ -30,7 +30,7 @@ export const config = {
   dns: {
     hostedZoneName: 'in.cld',
     recordName: 'nginx-app',
-    fqdn: 'nginx-app.in.cld',
+    fqdn: 'nginx.sample.in.cld',
   },
 
   // Tags
