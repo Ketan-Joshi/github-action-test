@@ -13,17 +13,19 @@ const env = {
   region: config.env.region,
 };
 
+const prefix = config.envPrefix;
+
 // ── Stack 1: Landing Zone (VPC + Shared ALB) ──────────────
-const landingZone = new LandingZoneStack(app, 'LandingZoneStack', {
+const landingZone = new LandingZoneStack(app, `${prefix}-LandingZoneStack`, {
   env,
-  description: 'Landing Zone — VPC, subnets, NAT GW, shared ALB',
-  terminationProtection: true,
+  description: `[${prefix}] Landing Zone — VPC, subnets, NAT GW, shared ALB`,
+  terminationProtection: prefix === 'prod', // only protect prod
 });
 
-// ── Stack 2: ECS Apps (all services auto-wired from config) ─
-new EcsAppsStack(app, 'EcsAppsStack', {
+// ── Stack 2: ECS Apps ──────────────────────────────────────
+new EcsAppsStack(app, `${prefix}-EcsAppsStack`, {
   env,
-  description: 'ECS Fargate — all apps sharing one cluster and ALB',
+  description: `[${prefix}] ECS Fargate — all apps sharing one cluster and ALB`,
   vpc: landingZone.vpcConstruct.vpc,
   httpsListener: landingZone.albConstruct.httpsListener,
   albSecurityGroup: landingZone.albConstruct.albSecurityGroup,

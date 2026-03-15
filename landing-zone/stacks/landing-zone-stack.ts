@@ -3,7 +3,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { VpcConstruct } from '../constructs/vpc-construct';
 import { AlbConstruct } from '../constructs/alb-construct';
-import { config } from '../../shared/config';
+import { config } from '../../shared/config.types';
 
 export class LandingZoneStack extends cdk.Stack {
   public readonly vpcConstruct: VpcConstruct;

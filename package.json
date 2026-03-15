@@ -8,10 +8,10 @@
     "cdk": "cdk",
     "diff": "cdk diff --app 'npx ts-node bin/app.ts'",
     "deploy": "cdk deploy --all --app 'npx ts-node bin/app.ts' --require-approval never",
-    "deploy:lz": "cdk deploy LandingZoneStack --app 'npx ts-node bin/app.ts' --require-approval never",
-    "deploy:ecs": "cdk deploy EcsAppsStack --app 'npx ts-node bin/app.ts' --require-approval never",
-    "destroy:ecs": "cdk destroy EcsAppsStack --app 'npx ts-node bin/app.ts' --force",
-    "destroy:lz": "cdk destroy LandingZoneStack --app 'npx ts-node bin/app.ts' --force"
+    "deploy:lz": "cdk deploy \"${APP_ENV:-dev}-LandingZoneStack\" --app 'npx ts-node bin/app.ts' --require-approval never",
+    "deploy:ecs": "cdk deploy \"${APP_ENV:-dev}-EcsAppsStack\" --app 'npx ts-node bin/app.ts' --require-approval never",
+    "destroy:ecs": "cdk destroy \"${APP_ENV:-dev}-EcsAppsStack\" --app 'npx ts-node bin/app.ts' --force",
+    "destroy:lz": "cdk destroy \"${APP_ENV:-dev}-LandingZoneStack\" --app 'npx ts-node bin/app.ts' --force"
   },
   "devDependencies": {
     "@types/node": "20.x",

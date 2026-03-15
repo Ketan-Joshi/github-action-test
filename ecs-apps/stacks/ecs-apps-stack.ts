@@ -6,7 +6,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { Construct } from 'constructs';
 import { EcsServiceConstruct } from '../constructs/ecs-service-construct';
-import { config } from '../../shared/config';
+import { config } from '../../shared/config.types';
 
 export interface EcsAppsStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
