@@ -23,7 +23,7 @@ export const developmentConfig: EnvironmentConfig = {
 
   ecsApps: [
     {
-      id: 'nginx',
+      id: 'NginxApp',
       serviceName: 'dev-nginx-service',
       containerName: 'nginx',
       containerPort: 80,

@@ -28,6 +28,17 @@ export class EcsServiceConstruct extends Construct {
 
     const { vpc, cluster, httpsListener, albSecurityGroup, hostedZone, alb, appConfig } = props;
 
+    // ── Image resolution ──────────────────────────────────────
+    // Priority:
+    //   1. CDK context: image-override-{appId}  (passed by deploy.yml with ECR URI + tag)
+    //   2. appConfig.image fallback (used during initial infra setup / non-service deploys)
+    //
+    // Context key uses appConfig.id (e.g. NginxApp) so each service can be overridden independently
+    const imageOverride = this.node.tryGetContext(`image-override-${appConfig.id}`);
+    const resolvedImage = imageOverride ?? appConfig.image;
+
+    console.log(`[${appConfig.serviceName}] Image: ${resolvedImage}`);
+
     // Per-service log group
     const logGroup = new logs.LogGroup(this, 'LogGroup', {
       logGroupName: `/ecs/${appConfig.serviceName}`,
@@ -42,6 +53,18 @@ export class EcsServiceConstruct extends Construct {
         iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
       ],
     });
+
+    // Allow pulling from ECR
+    executionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ecr:GetAuthorizationToken',
+        'ecr:BatchCheckLayerAvailability',
+        'ecr:GetDownloadUrlForLayer',
+        'ecr:BatchGetImage',
+      ],
+      resources: ['*'],
+    }));
 
     // Task Role — used by the container itself (least privilege)
     const taskRole = new iam.Role(this, 'TaskRole', {
@@ -76,14 +99,13 @@ export class EcsServiceConstruct extends Construct {
     // Container definition
     taskDefinition.addContainer('Container', {
       containerName: appConfig.containerName,
-      image: ecs.ContainerImage.fromRegistry(appConfig.image),
+      image: ecs.ContainerImage.fromRegistry(resolvedImage),
       portMappings: [{ containerPort: appConfig.containerPort, protocol: ecs.Protocol.TCP }],
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: appConfig.containerName,
         logGroup,
       }),
-      // Health check is optional — only added if healthCheckCommand is provided in config
-      // For images without curl/wget (e.g. httpd), leave healthCheckCommand unset
+      // Health check is optional — only added if healthCheckCommand is set in config
       ...(appConfig.healthCheckCommand && {
         healthCheck: {
           command: ['CMD-SHELL', appConfig.healthCheckCommand],
