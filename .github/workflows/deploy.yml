@@ -43,9 +43,9 @@ on:
           - development
           - production
       service_id:
-        description: 'App ID to deploy (must match id in ecsApps config e.g. NginxApp)'
-        required: true
-        type: string
+        description: 'App ID to deploy (e.g. NginxApp). Leave empty to deploy ALL services'
+        required: false
+        default: ''
       image_tag:
         description: 'Docker image tag (leave empty to auto-fetch from deployment-trigger repo RELEASE file)'
         required: false
@@ -103,63 +103,93 @@ jobs:
         run: echo "Deploying to -> ${{ steps.resolve.outputs.target_env }}"
 
   # ── Job 3: Resolve image tag (workflow_dispatch only) ───────
-  # Fetches tag from deployment-trigger repo if not manually provided
+  # If service_id is empty  -> fetch tags for ALL services
+  # If service_id is set    -> fetch tag for that service only
+  # If image_tag is set     -> use it directly (only valid when service_id is also set)
   resolve-image:
-    name: Resolve Image Tag
+    name: Resolve Image Tag(s)
     runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'workflow_dispatch'
     outputs:
-      image_tag: ${{ steps.resolve.outputs.image_tag }}
-      full_image: ${{ steps.resolve.outputs.full_image }}
+      context_args: ${{ steps.resolve.outputs.context_args }}
+      summary: ${{ steps.resolve.outputs.summary }}
     steps:
-      - name: Resolve image tag
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve image tag(s)
         id: resolve
         run: |
           SERVICE_ID="${{ github.event.inputs.service_id }}"
-          TAG="${{ github.event.inputs.image_tag }}"
+          MANUAL_TAG="${{ github.event.inputs.image_tag }}"
+          ENV="${{ github.event.inputs.environment }}"
           ACCOUNT="${{ secrets.CDK_DEFAULT_ACCOUNT }}"
           REGION="${{ secrets.CDK_DEFAULT_REGION }}"
+          CONTEXT_ARGS=""
+          SUMMARY=""
 
-          if [ -z "$TAG" ]; then
-            echo "No tag provided — fetching RELEASE from deployment-trigger repo..."
-            echo "Branch: ${SERVICE_ID}"
-
-            # Fetch RELEASE file from deployment-trigger repo
-            # Branch name = appConfig.id (e.g. NginxApp, HttpdApp)
-            HTTP_STATUS=$(curl -s -o /tmp/release_response.txt -w "%{http_code}" \
-              -H "Authorization: token ${{ secrets.DEPLOYMENT_TRIGGER_TOKEN }}" \
-              -H "Accept: application/vnd.github.v3.raw" \
-              "https://api.github.com/repos/${{ secrets.DEPLOYMENT_TRIGGER_REPO }}/contents/RELEASE?ref=${SERVICE_ID}")
-
-            if [ "$HTTP_STATUS" != "200" ]; then
-              echo "ERROR: Could not fetch RELEASE file"
-              echo "HTTP status: $HTTP_STATUS"
-              echo "Response: $(cat /tmp/release_response.txt)"
-              echo "Ensure branch '${SERVICE_ID}' exists in ${{ secrets.DEPLOYMENT_TRIGGER_REPO }}"
-              exit 1
-            fi
-
-            TAG=$(cat /tmp/release_response.txt | tr -d '[:space:]')
-            echo "Fetched tag from deployment-trigger repo: $TAG"
+          # Get list of app IDs to process
+          # If service_id is provided -> use just that one
+          # If service_id is empty    -> use all apps from config
+          if [ -n "$SERVICE_ID" ]; then
+            APP_IDS="$SERVICE_ID"
+            echo "Single service mode: $SERVICE_ID"
           else
-            echo "Using manually provided tag: $TAG"
+            echo "All services mode — fetching all app IDs from config..."
+            APP_IDS=$(node -e "
+              process.env.APP_ENV = '${ENV}';
+              const { config } = require('./shared/config');
+              console.log(config.ecsApps.map(a => a.id).join(' '));
+            ")
+            echo "App IDs: $APP_IDS"
           fi
 
-          # ECR image URI: {account}.dkr.ecr.{region}.amazonaws.com/{service_id_lowercase}:{tag}
-          # ECR repo name = service_id lowercased (NginxApp -> nginxapp)
-          ECR_REPO=$(echo "${SERVICE_ID}" | tr '[:upper:]' '[:lower:]')
-          FULL_IMAGE="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${ECR_REPO}:${TAG}"
+          for APP_ID in $APP_IDS; do
+            TAG=""
 
-          echo "image_tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "full_image=${FULL_IMAGE}" >> $GITHUB_OUTPUT
+            # Use manual tag only when deploying a single specific service
+            if [ -n "$SERVICE_ID" ] && [ -n "$MANUAL_TAG" ]; then
+              TAG="$MANUAL_TAG"
+              echo "${APP_ID}: using manually provided tag: $TAG"
+            else
+              echo "${APP_ID}: fetching RELEASE from deployment-trigger repo (branch: ${APP_ID})..."
 
-          echo "------------------------------------"
-          echo "Service ID:  $SERVICE_ID"
-          echo "ECR repo:    $ECR_REPO"
-          echo "Tag:         $TAG"
-          echo "Full image:  $FULL_IMAGE"
-          echo "------------------------------------"
+              HTTP_STATUS=$(curl -s -o /tmp/release_${APP_ID}.txt -w "%{http_code}" \
+                -H "Authorization: token ${{ secrets.DEPLOYMENT_TRIGGER_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3.raw" \
+                "https://api.github.com/repos/${{ secrets.DEPLOYMENT_TRIGGER_REPO }}/contents/RELEASE?ref=${APP_ID}")
+
+              if [ "$HTTP_STATUS" != "200" ]; then
+                echo "ERROR: Could not fetch RELEASE for ${APP_ID} (HTTP $HTTP_STATUS)"
+                echo "Ensure branch '${APP_ID}' exists in ${{ secrets.DEPLOYMENT_TRIGGER_REPO }}"
+                exit 1
+              fi
+
+              TAG=$(cat /tmp/release_${APP_ID}.txt | tr -d '[:space:]')
+              echo "${APP_ID}: fetched tag: $TAG"
+            fi
+
+            ECR_REPO=$(echo "${APP_ID}" | tr '[:upper:]' '[:lower:]')
+            FULL_IMAGE="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${ECR_REPO}:${TAG}"
+
+            CONTEXT_ARGS="${CONTEXT_ARGS} --context image-override-${APP_ID}=${FULL_IMAGE}"
+            SUMMARY="${SUMMARY}| ${APP_ID} | ${FULL_IMAGE} |\n"
+
+            echo "${APP_ID} -> $FULL_IMAGE"
+          done
+
+          echo "context_args=${CONTEXT_ARGS}" >> $GITHUB_OUTPUT
+          echo "summary=${SUMMARY}" >> $GITHUB_OUTPUT
 
   # ── Job 4: CDK Diff (PR only) ──────────────────────────────
   diff:
@@ -422,10 +452,10 @@ jobs:
             ${{ steps.image_context.outputs.context_args }} \
             --ignore-no-stacks
 
-  # ── Job 8: Deploy single service (workflow_dispatch only) ───
-  # Deploys ONE specific service with resolved image tag
+  # ── Job 8: Deploy service(s) (workflow_dispatch only) ───────
+  # Deploys ONE service if service_id is set, ALL services if empty
   deploy-single-service:
-    name: Deploy ${{ github.event.inputs.service_id }} to ${{ github.event.inputs.environment }}
+    name: Deploy ${{ github.event.inputs.service_id || 'All Services' }} to ${{ github.event.inputs.environment }}
     runs-on: ubuntu-latest
     needs: [resolve-env, resolve-image, deploy-ecs-cluster]
     if: github.event_name == 'workflow_dispatch'
@@ -452,7 +482,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.CDK_DEFAULT_REGION }}
-          role-session-name: GitHubActions-SingleService-${{ github.event.inputs.service_id }}
+          role-session-name: GitHubActions-Deploy-${{ github.event.inputs.environment }}
 
       - name: Authenticate with ECR
         run: |
@@ -469,30 +499,44 @@ jobs:
           echo "zone_id=$ZONE_ID" >> $GITHUB_OUTPUT
           echo "Resolved hosted zone: $ZONE_ID"
 
-      - name: Deploy service stack
+      - name: Deploy stack(s)
         run: |
           SERVICE_ID="${{ github.event.inputs.service_id }}"
           ENV="${{ github.event.inputs.environment }}"
-          FULL_IMAGE="${{ needs.resolve-image.outputs.full_image }}"
-          STACK_NAME="${ENV}-${SERVICE_ID}Stack"
+          CONTEXT_ARGS="${{ needs.resolve-image.outputs.context_args }}"
 
-          echo "Stack:  $STACK_NAME"
-          echo "Image:  $FULL_IMAGE"
+          if [ -n "$SERVICE_ID" ]; then
+            # Single service
+            STACK_NAME="${ENV}-${SERVICE_ID}Stack"
+            echo "Deploying single stack: $STACK_NAME"
+          else
+            # All services
+            STACK_NAME="${ENV}-*AppStack"
+            echo "Deploying all service stacks: $STACK_NAME"
+          fi
 
           npx cdk deploy "$STACK_NAME" \
             --require-approval never \
             --progress events \
             --context "hosted-zone-id=${{ steps.hosted_zone.outputs.zone_id }}" \
             --context "hosted-zone-name=${{ secrets.HOSTED_ZONE_NAME }}" \
-            --context "image-override-${SERVICE_ID}=${FULL_IMAGE}"
+            $CONTEXT_ARGS \
+            --ignore-no-stacks
 
       - name: Deployment summary
         run: |
+          SERVICE_ID="${{ github.event.inputs.service_id }}"
           echo "### Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Service** | ${{ github.event.inputs.service_id }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Environment** | ${{ github.event.inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Image** | ${{ needs.resolve-image.outputs.full_image }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Tag** | ${{ needs.resolve-image.outputs.image_tag }} |" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$SERVICE_ID" ]; then
+            echo "| **Service** | $SERVICE_ID |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Services** | All |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Image |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          printf "${{ needs.resolve-image.outputs.summary }}" >> $GITHUB_STEP_SUMMARY
