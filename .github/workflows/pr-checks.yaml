@@ -1,0 +1,15 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  hello:
+    name: Hello Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Say Hello
+        run: echo "hello there"
