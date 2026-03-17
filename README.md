@@ -278,3 +278,5 @@ APP_ENV=production npx cdk destroy production-NginxAppStack
 APP_ENV=production npx cdk destroy production-EcsClusterStack
 APP_ENV=production npm run destroy:lz
 ```
+
+Added Status Checks
